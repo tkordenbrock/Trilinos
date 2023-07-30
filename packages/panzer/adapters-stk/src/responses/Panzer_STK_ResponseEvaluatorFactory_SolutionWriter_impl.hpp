@@ -6,6 +6,8 @@
 #include "Panzer_STK_ScatterVectorFields.hpp"
 #include "Panzer_PointValues_Evaluator.hpp"
 #include "Panzer_BasisValues_Evaluator.hpp"
+#include "Panzer_STK_DOFCurlCoeff.hpp"
+#include "Panzer_STK_DOFDivCoeff.hpp"
 #include "Panzer_DOF.hpp"
 #include "Panzer_DOF_PointValues.hpp"
 
@@ -207,6 +209,16 @@ buildAndRegisterEvaluators(const std::string& /* responseName */,
         this->template registerEvaluator<EvalT>(fm, evaluator);
         fm.template requireField<EvalT>(*evaluator->evaluatedFields()[0]); // require the dummy evaluator
       }
+
+
+      // add a DOF_CurlCoeff evaluator
+      for(std::size_t f=0;f<fields.size();f++) {
+        Teuchos::RCP<PHX::Evaluator<panzer::Traits> > evaluator
+          = Teuchos::rcp(new panzer::DOF_CurlCoeff<EvalT,panzer::Traits>(fields[f],basis->functional,mesh_,basis));
+
+        this->template registerEvaluator<EvalT>(fm, evaluator);
+        fm.template requireField<EvalT>(*evaluator->evaluatedFields()[0]); // require the dummy evaluator
+      }
     }
     else if(basis->getElementSpace()==panzer::PureBasis::HDIV) {
       TEUCHOS_ASSERT(centroidRule!=Teuchos::null);
@@ -238,6 +250,15 @@ buildAndRegisterEvaluators(const std::string& /* responseName */,
         Teuchos::RCP<PHX::Evaluator<panzer::Traits> > evaluator  
            = Teuchos::rcp(new ScatterVectorFields<EvalT,panzer::Traits>("STK HDIV Scatter Basis " +basis->name()+": "+fields_concat,
                                                                         mesh_,centroidRule,fields,scalars));
+
+        this->template registerEvaluator<EvalT>(fm, evaluator);
+        fm.template requireField<EvalT>(*evaluator->evaluatedFields()[0]); // require the dummy evaluator
+      }
+
+      // add a DOF_DivCoeff evaluator
+      for(std::size_t f=0;f<fields.size();f++) {
+        Teuchos::RCP<PHX::Evaluator<panzer::Traits> > evaluator
+          = Teuchos::rcp(new panzer::DOF_DivCoeff<EvalT,panzer::Traits>(fields[f],basis->functional,mesh_,basis));
 
         this->template registerEvaluator<EvalT>(fm, evaluator);
         fm.template requireField<EvalT>(*evaluator->evaluatedFields()[0]); // require the dummy evaluator

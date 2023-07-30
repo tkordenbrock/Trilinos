@@ -613,6 +613,25 @@ namespace mini_em {
 
   }
 
+  int cardinalityDigits(Teuchos::RCP<const panzer::PureBasis> &pb) {
+    int n=pb->cardinality();
+    int digits=0;
+    while (n != 0) {
+      n = n / 10;
+      ++digits;
+    }
+    return digits;
+  }
+  std::string getVariableName(Teuchos::RCP<const panzer::PureBasis> &pb,
+                              const std::string &name,
+                              int dof_ordinal)
+  {
+    std::stringstream ss;
+    ss << name << "_";
+    ss << std::setfill('0') << std::setw(cardinalityDigits(pb));
+    ss << dof_ordinal+1;
+    return ss.str();
+  }
 
   void createExodusFile(const std::vector<Teuchos::RCP<panzer::PhysicsBlock> >& physicsBlocks,
                         Teuchos::RCP<panzer_stk::STK_MeshFactory> mesh_factory,
@@ -641,10 +660,44 @@ namespace mini_em {
           mesh->addSolutionField(fieldItr->first,pb->elementBlockID());
         else if(basis->getElementSpace()==panzer::PureBasis::CONST )
           mesh->addCellField(fieldItr->first,pb->elementBlockID());
-        else if(basis->getElementSpace()==panzer::PureBasis::HCURL ||
-                basis->getElementSpace()==panzer::PureBasis::HDIV    ) {
+        else if(basis->getElementSpace()==panzer::PureBasis::HCURL) {
+          // add the individual vector components
           for(int dim=0;dim<basis->dimension();++dim)
             mesh->addCellField(fieldItr->first+dimenStr[dim],pb->elementBlockID());
+
+          std::vector<std::string> info_records;
+          std::string basis_record = "HCURL::"+pb->elementBlockID()+"::CG::basis::"+basis->getIntrepid2Basis()->getName();
+          std::string field_record = "HCURL::"+pb->elementBlockID()+"::CG::field::"+fieldItr->first;
+          std::string coeff_record = "HCURL::"+pb->elementBlockID()+"::CG::coeff::EDGE_COEFF_"+fieldItr->first;
+          info_records.push_back(basis_record);
+          info_records.push_back(field_record);
+          info_records.push_back(coeff_record);
+          mesh->addInformationRecords(info_records);
+
+          // add the oriented DOF coefficients
+          for(int coeff=0;coeff<basis->cardinality();coeff++) {
+            std::string cell_field_name = getVariableName(basis, "EDGE_COEFF_"+fieldItr->first, coeff);
+            mesh->addCellField(cell_field_name, pb->elementBlockID());
+          }
+        } else if (basis->getElementSpace()==panzer::PureBasis::HDIV) {
+          // add the individual vector components
+          for(int dim=0;dim<basis->dimension();++dim)
+            mesh->addCellField(fieldItr->first+dimenStr[dim],pb->elementBlockID());
+
+          std::vector<std::string> info_records;
+          std::string basis_record = "HDIV::"+pb->elementBlockID()+"::CG::basis::"+basis->getIntrepid2Basis()->getName();
+          std::string field_record = "HDIV::"+pb->elementBlockID()+"::CG::field::"+fieldItr->first;
+          std::string coeff_record = "HDIV::"+pb->elementBlockID()+"::CG::coeff::FACE_COEFF_"+fieldItr->first;
+          info_records.push_back(basis_record);
+          info_records.push_back(field_record);
+          info_records.push_back(coeff_record);
+          mesh->addInformationRecords(info_records);
+
+          // add the oriented DOF coefficients
+          for(int coeff=0;coeff<basis->cardinality();coeff++) {
+            std::string cell_field_name = getVariableName(basis, "FACE_COEFF_"+fieldItr->first, coeff);
+            mesh->addCellField(cell_field_name, pb->elementBlockID());
+          }
         } else if(basis->getElementSpace()==panzer::PureBasis::HVOL)
           mesh->addCellField(fieldItr->first,pb->elementBlockID());
       }
